@@ -3,7 +3,7 @@ import socket
 import os
 import sys
 from pwd import getpwall
-from subprocess import run, check_output, Popen, PIPE
+from subprocess import run, check_output
 import argparse
 import textwrap
 import random
