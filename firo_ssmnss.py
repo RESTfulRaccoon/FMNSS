@@ -639,7 +639,7 @@ def enable_services():
 ### Reboot System ###
 			
 def reboot():
-	print("reboot")
+	run(['systemctl', 'reboot'])
 
 ### Run ###
 			
