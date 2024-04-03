@@ -637,9 +637,11 @@ def enable_services():
 			print(e)
 			print('Unable to restart sshd service, please do so manually.')
 ### Reboot System ###
-			
-def reboot():
-	run(['systemctl', 'reboot'])
+	### using currently would cause user to be unable to check their ssh port making it harder for them to log in.
+	### if ran with this enabled and you are having difficulty figuring out which port your sshd server has open 
+	### run the command `nmap {local_ip}/{subnet}`
+#def reboot():
+#	run(['systemctl', 'reboot'])
 
 ### Run ###
 			
@@ -659,5 +661,5 @@ def main():
 	change_ownership()
 	clean_up()
 	enable_services()
-	reboot()
+#	reboot()
 main()
