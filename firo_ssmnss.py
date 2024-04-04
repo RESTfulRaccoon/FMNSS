@@ -122,6 +122,12 @@ try:
 except OSError as e:
 	print(e)
 	exit()
+numb = 0
+if arch == 'x86_64':
+	num = 1
+else:
+	print("This script is designed for Linux based systems on ARM or x86_64 architecture\nExiting...")
+	exit()
 tarball = "".join(firo_core_version.json()["assets"][0]["browser_download_url"].split("/")[-1])
 
 current_dir = str(check_output('pwd')).replace("b'","").replace("\\n'","").strip()
