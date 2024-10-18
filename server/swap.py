@@ -22,7 +22,7 @@ def swap():
 	else:
 		swap = None
 
-	if mem >= 4 and swap != None:
+	if mem >= 4:
 		print("Sufficent memory and swap space found, skipping")
 
 	elif swap == None:
