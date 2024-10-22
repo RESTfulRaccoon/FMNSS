@@ -1,6 +1,13 @@
-from variables import nofinish, verbose
+from variables import nofinish,clean_up, verbose
+from subprocess import run
+
+### REMOVE CACHE
+run(clean_up)
+verbose("Clearing cache...")
 if nofinish == True:
-    verbose("Please wait for your node to complete syncing, once done run `last of commands needed from setup guide`")
+    print(__name__)
 else:
 ### Cronjob to finsish the setup after server node is synced
-    print("TODO: finish.py")
+## can you have the client ping the server rpc for some info? this would be best route
+# ping > if true run scripte else wait X time
+    print("TODO: "+__name__)

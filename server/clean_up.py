@@ -17,3 +17,5 @@ def clean_up(current_dir):
 		os.remove(f)
 		print("Removed: "+f)
 	print("\t========== Complete ==========\n\n")
+
+### REMOVE CACHE

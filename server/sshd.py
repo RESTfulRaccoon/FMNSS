@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import os
-import checkinfo
+import variables
 ### Sshd configuration ###
 ## Server Side
 
@@ -9,7 +9,7 @@ def sshd_conf(port):
 	print("========== Configuring SSHD... ==========\n")
 	f = open('/etc/ssh/sshd_config', 'a')
 	f.write('PermitRootLogin no\nMaxAuthTries 3\nMaxSessions 3\n')
-	if checkinfo.pubkey == None:
+	if variables.pubkey == None:
 		pass
 	else:
 		f.write('PasswordAuthentication no\n')

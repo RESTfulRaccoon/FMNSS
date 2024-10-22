@@ -1,6 +1,7 @@
 ### Ensure enough memory and virtual memory, add if needed ###
+### GIVE THIS SOME GOOD WORK! This can be used widely...
 from subprocess import run
-def swap():
+def autoswap():
 	print("Checking if swap exists...")
 	swap = run(['free'], capture_output=True)
 	swap = str(swap.stdout).replace("b'", "").replace("\\n", " ").replace("\\t", " ").replace("'", "").split()
