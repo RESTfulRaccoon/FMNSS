@@ -1,60 +1,375 @@
-from variables import verbose,keypath,keyname,sshkeypass,suusr,ext
-from local_fun import key_check
-from subprocess import run, CalledProcessError, PIPE
+from variables import suusr, supass
+from local import gen_key, key_type,fullkey
+from local_fun import verbose
+import paramiko
+from time import sleep
 
-### GEN KEY
-## If `--ssh_key_name` not selected ganerate one
-if keyname == None:
-    keyname=key_check(keypath)
-    fullkey=keypath+keyname
-    try:
-        result = run(['ssh-keygen','-t','ed25519','-f',fullkey,'-N',sshkeypass],stdout=PIPE,universal_newlines=True)
-        verbose(result.stdout)
-    except CalledProcessError as e:
-        verbose(e)
-elif keyname != None:
-    if keyname[-4:] == '.pub':
-        fullkey=keypath+keyname[:-4]
-    else:
-        keyname=keyname
-        fullkey = keypath+keyname
-    result = run(['ssh-keygen','-l','-f',fullkey+'.pub'], stderr=PIPE)
-    if result.stderr:
-        print(str(result.stderr).replace("b'", "").replace("\\r\\n", ""))    
-        keyname=key_check(keypath)
-        print("Public key did not work...\nAutomatically creating an ssh key: "+keyname)
-        fullkey=keypath+keyname
-        try:
-            result = run(['ssh-keygen','-t','ed25519','-f',fullkey,'-N',sshkeypass],stdout=PIPE,universal_newlines=True)
-            print(result.stdout)
-        except CalledProcessError as e:
-            verbose(e)
-
-### COPY ID
-try:
-    result = run(['ssh-copy-id','-i',fullkey,suusr+':'+ext],stdout=PIPE, stderr=PIPE,universal_newlines=True)
-    if result.stderr:
-        run(['rm',fullkey, fullkey+'.pub'])
-        print("ERROR:")
-        verbose(result.stderr)
-        print("removing created keyfiles")
-        print("exiting...")
-        #exit()
-except CalledProcessError as e:
-    run(['rm',fullkey, fullkey+'.pub'])
-    print(e)
-    print("removing created keyfiles")
-    print("exiting...")
-    #exit()
 
 ### SSH into the server
-print("TODO: SSH IN")
-### Check if you are root if this fails remove the key too
-print('TODO:uid')
-### Make sure the server is up to date and depends for script are installed.
-print("TODO: DOWNLOAD DEPENDS && UPDATE IF NEEDED,")
-### download takenodes.py
-print("TODO: download takenodes.py")
-### Run takenodes.py {ALL INPUT REQUIRED}
+client = paramiko.SSHClient()
+if gen_key:
+    if key_type == '(RSA)':
+        k = paramiko.RSAKey.from_private_key_file(fullkey)
+    elif key_type == '(DSS)':
+        k = paramiko.DSSKey.from_private_key_file(fullkey)
+    elif key_type == '(ED25519)':
+        k=paramiko.Ed25519Key.from_private_key_file(fullkey)
+    elif key_type == '(EDCSA)':    
+        k=paramiko.ECDSAKey.from_private_key_file(fullkey)
+else:
+    k=paramiko.Ed25519Key.from_private_key_file(fullkey)
 
-print(__name__)
+client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+client.connect(hostname=suusr, username=supass, pkey=k)
+### DO EVERYTHING HERE THROUGH SSH
+channel = client.invoke_shell()
+channel.recv(99999)
+channel.send('\n')
+sleep(1)
+channel.recv(9999)
+def ssh(c):
+    su = False
+    s = c.split(" ")
+    if s[0] == 'sudo':
+        sudo = True
+    else:
+        sudo = False
+    if su:
+        channel.send(c+' \n')
+        sleep(0.1)
+        m = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
+    if sudo:
+        channel.send('sudo whoami \n')
+        sleep(0.1)
+        r = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
+        if 'root' not in r[1]:
+            channel.send('sudo whoami \n')
+            sleep(0.1)
+            r = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
+            if 'sudo: command not found' or 'root' not in r[1]:
+                s.pop(0)
+                c = ""
+                for w in s:
+                    c+=w+" "
+                channel.send('su - \n')
+                sleep(0.1)
+                channel.send(pw)
+                sleep(0.1)
+                channel.send('\n')
+                sleep(0.1)
+                channel.recv(99999)
+                channel.send('whoami \n')
+                sleep(0.1)
+                r = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
+                if 'root' not in r[1]:
+                    channel.send('su - \n')
+                    sleep(0.1)
+                    channel.send(pw)
+                    sleep(0.1)
+                    channel.send('\n')
+                    sleep(0.1)
+                    channel.recv(99999)
+                    channel.send('whoami \n')
+                    sleep(0.1)
+                    r = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
+                    if 'root' not in r[1]:
+                        print("ERROR: COULD NOT GAIN ELIVATED PRIVLAGES")
+                else: su = True
+                channel.send(c+' \n')
+                sleep(0.1)
+        else:
+            channel.send(c+' \n')
+            sleep(0.1)
+        m = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
+    else:
+        channel.send(c+' \n')
+        sleep(0.1)
+        m = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
+    return m
+    
+ssh() ## check if updating
+#Gather server disro info
+x=ssh('cat /etc/os-release')
+for y in x:
+	if "ID" == x.split('=')[0]:
+	    dist = x
+for y in x:
+	if "VERSION_ID" == x.split('=')[0]:
+		dist_ver=x
+#Gather server LAN info for static IP creation
+x=ssh('ip -o -f inet addr show')[2].split(" ")
+network = x[6]
+ipv4 = network.split('/')[0]
+subnet = network.split('/')[1]
+ni = x[1]
+broadcast = x[10]
+gateway = ssh('ip route')[1].split(" ")[2]
+
+### Create static ip address ###
+#ifupdown, netplan, systemd-networkd, NetworkManager
+if dist == 'debian' or ('ubuntu' and dist_ver <= '16'):
+    #ifupdown
+    ssh('sudo cp /etc/network/interfaces /etc/network/interfaces.bak')
+    ssh('echo -e "#Generated by Firo Masternode Startup Script\n\n#The loopback network interface\nauto lo\niface lo inet loopback\n\nsource /etc/network/interfaces.d/*\n\n#The primary network interface\nauto '+ni+'\nallow-hotplug'+ni+'\niface '+ni+' inet static\n\taddress '+network+'\n\tbroadcast '+broadcast+'\n\tgateway '+gateway+'\n\tdns-nameservers 1.1.1.1,1.0.0.1\n" > etc/network/interfaces')
+    ssh('sudo ifdown '+ni+' && sudo ifup '+ni)
+elif dist == 'ubuntu' and dist_ver > '16':
+    # netplan
+    ssh('sudo cp /etc/]')
+#elif x == y:    
+    # #systemd-networkd
+    # ssh('sudo cp /etc/systemd/network/05-eth.network /etc/systemd/network/05-eth.network.bak')
+    # ssh('sudo echo -e "#Generated by Firo Masternode Startup Script\n\n[Match]\n'+ni+'\n\n[Network]\nDHCP=no\nDNS=1.1.1.1 1.0.0.1\n\nGateway='+gateway+'\nAddress='+network)
+else:
+    print("Static IP configuration only avilable for Debian based servers.")
+    print("==========Failed to create a static ip address!==========\n")
+
+
+### Sshd configuration ###
+## Server Side
+
+# print("========== Configuring SSHD... ==========\n")
+# f = open('/etc/ssh/sshd_config', 'a')
+# f.write('PermitRootLogin no\nMaxAuthTries 3\nMaxSessions 3\n')
+# f.write('PasswordAuthentication no\n')
+# if port == '22':
+# 	pass
+# else:
+# 	f.write('Port '+port+'\n')
+# f.close
+
+# ## This is clever but i should just disable cloud-init
+# if os.path.exists("/etc/ssh/sshd_config.d/50-cloud-init.conf"):
+# 	os.remove('/etc/ssh/sshd_config.d/50-cloud-init.conf')
+# ## Double check more of these crazy files dont exist
+# if os.path.exists("/etc/sysconfig/sshd-permitrootlogin"):
+# 	os.remove("/etc/sysconfig/sshd-permitrootlogin")
+# print("\t========== Complete ==========\n\n")
+
+
+
+
+ssh() ## preform system changes
+# def autoswap():
+# 	print("Checking if swap exists...")
+# 	swap = run(['free'], capture_output=True)
+# 	swap = str(swap.stdout).replace("b'", "").replace("\\n", " ").replace("\\t", " ").replace("'", "").split()
+# 	pswap = run(['cat','/proc/swaps'], capture_output=True)
+# 	pswap = str(pswap.stdout).replace("b'", "").replace("\\n", " ").replace("\\t", " ").replace("'", "").split()
+# 	mem = swap[7]
+# 	mem = round(int(mem)*.931323/1000000)
+
+# 	if "file" in pswap:
+# 		dex=pswap.index('file')
+# 		flocation = pswap[dex+1]
+# 	else:
+# 		flocation = None
+    
+# 	if "Swap:" in swap:
+# 		dex = swap.index("Swap:")
+# 		swap = swap[dex+1]
+# 		swap = round(int(swap)*.931323/1000000)
+# 	else:
+# 		swap = None
+
+# 	if mem >= 4:
+# 		print("Sufficent memory and swap space found, skipping")
+
+# 	elif swap == None:
+# 		size = 4 - (mem)
+# 		print(f"No swap found.\nCreating {size}GB swapfile")
+# 		run(['fallocate', '-l', size+'G', '/swapfile'])
+# 		run(['chmod', '600', '/swapfile'])
+# 		run(['mkswap', '/swapfile'])
+# 		run(['swapon', '/swapfile'])
+# 		f = open('/etc/fstab', 'a')
+# 		f.write("/swapfile\tnone\tswap\tsw\t0\t0")
+# 		f.close
+# 		print("\t========== Complete ==========\n\n")
+      
+# 	elif flocation == None and swap != None and mem+swap < 4:
+# 		size = 4 - (mem+swap)
+# 		print(f"Not enough free memory for Firod.\nCreating {size}GB swapfile")
+# 		run(['fallocate', '-l', size+"G", '/swapfile'])
+# 		run(['chmod', '600', '/swapfile'])
+# 		run(['mkswap', '/swapfile'])
+# 		run(['swapon', '/swapfile'])
+# 		f = open('/etc/fstab', 'a')
+# 		f.write("/swapfile\tnone\tswap\tsw\t0\t0")
+# 		f.close
+# 		print("\t========== Complete ==========\n\n")
+
+
+# from pwd import getpwall
+# from subprocess import run
+# from os import system
+# ### Add user if user doesn't exist ###
+
+# print(f"========== Checking if {usr} exists as a user ==========\n")
+# usernames = [x[0] for x in getpwall()]
+# if usr in usernames:
+# 	print(f"{usr} is already a user, skipping this step")
+# else:	
+# 	print(f"========== Adding {usr} user... ==========\n")
+# 	run(['useradd', '-m', usr])
+# 	usr = 'firo:'+passwd
+# 	cmd = 'printf "'+usr+'" | chpasswd'
+# 	system(cmd)
+# 	print("\t========== Complete ==========\n\n")
+
+
+ssh() ## download firod and configure
+# ### firod
+# from subprocess import run, check_output
+# from shutil import rmtree
+
+# ### Check current version of firo
+# arch = str(check_output('arch')).replace("b'","").replace("\\n'","").strip()
+# try:
+# 	firo_core_version = run(['curl','https://api.github.com/repos/firoorg/firo/releases/latest','|','jq','-r','.tagname'])
+# 	print(firo_core_version)
+# except OSError as e:
+# 	print(e)
+# 	exit()
+	
+# numb = 0
+# if arch == 'x86_64':
+# 	numb = 1
+# else:
+# 	print("This script is designed for Linux based systems on ARM or x86_64 architecture\nExiting...")
+# 	exit()
+# tarball = "".join(firo_core_version.json()["assets"][numb]["browser_download_url"].split("/")[-1])
+
+# ### download firo
+
+# def download(firo_core_version):
+# 	charch = 0
+
+# 	if arch == 'x86_64':
+# 		charch = 1
+# 	print("========== Downloading Firo Binaries tarball and Checksums... ==========\n")
+# 	run(['wget', '-q', firo_core_version.json()['assets'][charch]['browser_download_url']])
+# 	run(['wget', '-q', firo_core_version.json()['assets'][6]['browser_download_url']])
+# 	print("\t========== Complete ==========\n\n")
+
+# ### Validate intrgrity of tarball with CHECKSUMS ###
+
+# ### Will all be on linux, just check if its arm or amd
+# def checksum(arch, current_dir, tarball):
+# 	vers = 'aarch64'
+
+# 	if arch == 'x86_64':
+# 		vers = 'linux64'
+
+# 	print("========== Checking download integrity ==========\n")
+
+# 	for lines in open('SHA256SUMS', 'r'):
+# 		if vers in lines:
+# 			line = lines
+   
+# 	check1 = str(check_output(['sha256sum', tarball])).replace("b'"," ").replace("\\n'","").strip()
+# 	check2 = str(line).strip()
+# 	if check1 == check2:
+# 		print("========== \tIntegrity Verified... ==========\n")
+# 	else:
+# 		rmtree(current_dir+"/"+tarball)
+# 		rmtree(current_dir+'/SHA256SUMS')
+
+# ### Extract tarball and move binaries to /usr/local/bin ###
+# import tarfile
+# import glob
+# from shutil import copy
+
+# def extract_mv(tarball, current_dir,op_file,uname):
+# 	print("========== Extracting Firo Binaries ==========\n")
+# 	tar = tarfile.open(tarball.strip(), "r:gz")
+# 	tar.extractall()
+# 	tar.close
+# 	print("\t========== Complete ==========\n\n")
+# 	print('========== Moving binaries to /usr/local/bin ==========')
+# 	for p in glob.glob(current_dir+'/firo-*/bin/firo*'):
+# 		copy(p, "/usr/local/bin/")
+# 		print("Moved "+p+" to /usr/loca/bin/")
+# 	print("\t========== Complete ==========\n\n")
+# 	copy(op_file, '/home/'+uname+'/')
+
+
+# import os
+# ### Create Firod config file ###
+
+# def create_config(uname,rpc_username, rpc_passwd, externalip, znodeprivkey):
+# 	print("========== Writing firo.conf file ==========\n")
+# 	try:
+# 		os.mkdir('/home/'+uname+'/.firo')
+# 	except OSError as error:
+# 		print(error)
+# 		pass
+# 	f = open('/home/'+uname+'/.firo/firo.conf', 'w')
+# 	f.write(f'#----\nrpcuser={rpc_username}\nrpcpassword={rpc_passwd}\nrpcallowip=127.0.0.1\n#----\nlisten=1\nserver=1\ndaemon=1\nlogtimestamps=1\ntxindex=1\n#----\nznode=1\nexternalip={externalip}:8168\nznodeblsprivkey={znodeprivkey}')
+# 	f.close
+# 	print("\t========== Complete ==========\n\n")
+
+# ### Change ownership of Firod and files to server user ###
+# from subprocess import run
+# from client.variables import usr
+# print("========== Changing Ownership of Firo required files ==========\n")
+# run(['chown', usr+':'+usr, '/usr/local/bin/firod'])
+# run(['chown', usr+':'+usr, '/usr/local/bin/firo-qt'])
+# run(['chown', usr+':'+usr, '/usr/local/bin/firo-tx'])
+# run(['chown', usr+':'+usr, '/usr/local/bin/firo-cli'])
+# run(['chown', '-R', usr+':'+usr, '/home/'+usr])
+# print("\t========== Complete ==========\n\n")
+
+
+ssh() ## bootstrap blockchain
+
+
+ssh() ## add services
+# #### Create Firod system daemon ###
+
+# f = open("/etc/systemd/system/firod.service", "w")
+# f.write(f'''
+# [Unit]
+# Description=Firo daemon
+# After=network.target
+
+# [Service]
+# Type=forking
+# Restart=always
+# RestartSec=30
+
+# User={usr}
+# Group={usr}
+# PIDFile=/home/{usr}/.firo/firod.pid
+
+# ExecStart=/usr/local/bin/firod
+# ExecStop=/usr/local/bin/firo-cli stop
+
+# [Install]
+# WantedBy=multi-user.target
+# ''')
+# f.close
+
+# ### Enable SSHD and FIROD ###
+# from subprocess import run
+# #/
+# run(['systemctl', 'daemon-reload'])
+# run(['systemctl', 'start', 'firod.service'])
+# run(['systemctl', 'enable', 'firod.service'])
+# try:
+# 	run(['systemctl', 'restart', 'sshd.service'])
+# except OSError as e:
+# 	print(e)
+# 	try:
+# 		run(['systemctl', 'restart', 'ssh.service'])
+# 	#this wont work long term, if sshd fails you lose access to the server making the script useless
+# 	#will have to work as a stand in for now while testing, cant fix the errors i cant create...
+# 	except OSError as e:
+# 		print(e)
+# 		print('Unable to restart sshd service, please do so manually.')
+
+# ### Create logrotate for Firod ###
+# from client.variables import usr
+# f = open("/etc/logrotate.d/firo", "w")
+# f.write("/home/"+usr+"/.firo/debug.log {\ndaily\nmissingok\nrotate 28\ncompress\ncopytruncate\n}")
+# f.close
+client.close()

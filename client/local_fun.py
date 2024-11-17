@@ -13,7 +13,7 @@ more = ['!','#','@','$','&','*','(',')','<','>','.','%','?','^']
 
 ### Distro Information
 
-### Daemon User Password Gen
+### Daemon User (`firo`) Password Gen
 def usr_passwd_gen(num):
 	passwd = []
 	charlist = letters+numbers+symbols+more
@@ -23,7 +23,7 @@ def usr_passwd_gen(num):
 	usrpwd = "".join(passwd)
 	return usrpwd
 
-### RPC Username & Password generator ###
+### RPC Username ###
 def username_gen(num):
 	u = []
 	charlist = letters
@@ -32,7 +32,7 @@ def username_gen(num):
 		u.append(randomchar)
 	rpcname = "".join(u)
 	return rpcname
-
+### RPC Password Generator
 def rpc_passwd_gen(num):
 	passwd = []
 	charlist = letters+numbers+symbols
@@ -72,8 +72,9 @@ def port(v):
 
 def usr(v):
 	print("v_usr: "+v)
-    #alpha only exit()  if fails
+    #char only exit()  if fails
 
+## Check if key exists 
 def key_check(a):
 	dir = a
 	num = 0
@@ -98,5 +99,3 @@ def key_check(a):
 			else:
 				cond = False
 				return file
-			
-
