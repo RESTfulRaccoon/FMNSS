@@ -1,27 +1,13 @@
-from variables import suusr, supass
-from local import gen_key, key_type,fullkey
+from variables import suusr, supass,ext,port as trop,sshkey, usr, passwd,rpc_passwd,rpc_usrname
+# from local import gen_key, key_type,fullkey
 from local_fun import verbose
-import paramiko
+from wallet import znodeprivkey
+import paramiko, requests
 from time import sleep
 
-
-### SSH into the server
 client = paramiko.SSHClient()
-if gen_key:
-    if key_type == '(RSA)':
-        k = paramiko.RSAKey.from_private_key_file(fullkey)
-    elif key_type == '(DSS)':
-        k = paramiko.DSSKey.from_private_key_file(fullkey)
-    elif key_type == '(ED25519)':
-        k=paramiko.Ed25519Key.from_private_key_file(fullkey)
-    elif key_type == '(EDCSA)':    
-        k=paramiko.ECDSAKey.from_private_key_file(fullkey)
-else:
-    k=paramiko.Ed25519Key.from_private_key_file(fullkey)
-
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect(hostname=suusr, username=supass, pkey=k)
-### DO EVERYTHING HERE THROUGH SSH
+client.connect(hostname=ext, username=suusr, pkey=sshkey,port=trop)
 channel = client.invoke_shell()
 channel.recv(99999)
 channel.send('\n')
@@ -41,9 +27,17 @@ def ssh(c):
     if sudo:
         channel.send('sudo whoami \n')
         sleep(0.1)
+        channel.send(supass)
+        sleep(0.1)
+        channel.send('\n')
+        sleep(0.1)
         r = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
         if 'root' not in r[1]:
             channel.send('sudo whoami \n')
+            sleep(0.1)
+            channel.send(supass)
+            sleep(0.1)
+            channel.send('\n')
             sleep(0.1)
             r = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
             if 'sudo: command not found' or 'root' not in r[1]:
@@ -53,7 +47,7 @@ def ssh(c):
                     c+=w+" "
                 channel.send('su - \n')
                 sleep(0.1)
-                channel.send(pw)
+                channel.send(supass)
                 sleep(0.1)
                 channel.send('\n')
                 sleep(0.1)
@@ -64,7 +58,7 @@ def ssh(c):
                 if 'root' not in r[1]:
                     channel.send('su - \n')
                     sleep(0.1)
-                    channel.send(pw)
+                    channel.send(supass)
                     sleep(0.1)
                     channel.send('\n')
                     sleep(0.1)
@@ -88,6 +82,9 @@ def ssh(c):
     return m
     
 ssh() ## check if updating
+
+
+
 #Gather server disro info
 x=ssh('cat /etc/os-release')
 for y in x:
@@ -114,7 +111,8 @@ if dist == 'debian' or ('ubuntu' and dist_ver <= '16'):
     ssh('sudo ifdown '+ni+' && sudo ifup '+ni)
 elif dist == 'ubuntu' and dist_ver > '16':
     # netplan
-    ssh('sudo cp /etc/]')
+    ssh('sudo cp /etc/netplan/01-netcfg.yaml /etc/netplan/01-netcfg.yaml.bak]')
+    ssh('sudo echo -e "network:\n\tversion: 2\n\trenderer: NetworkManager\n\tethernets:\n\t\teth0:\n\t\t\taddresses:\n\t\t\t\t- '+network+'\n\t\t\tdnsnameservers:\n\t\t\t\taddresses:\n\t\t\t\t\t- 1.1.1.1\n\t\t\t\t\t- 1.0.0.1\n\t\t\troutes:\n\t\t\t\t- to: default\n\t\t\t\t  via: ['+gateway+']" > /etc/netplan/01-netcfg.yaml')
 #elif x == y:    
     # #systemd-networkd
     # ssh('sudo cp /etc/systemd/network/05-eth.network /etc/systemd/network/05-eth.network.bak')
@@ -124,31 +122,22 @@ else:
     print("==========Failed to create a static ip address!==========\n")
 
 
-### Sshd configuration ###
-## Server Side
+### Sshd configuration 
 
-# print("========== Configuring SSHD... ==========\n")
-# f = open('/etc/ssh/sshd_config', 'a')
-# f.write('PermitRootLogin no\nMaxAuthTries 3\nMaxSessions 3\n')
-# f.write('PasswordAuthentication no\n')
-# if port == '22':
-# 	pass
-# else:
-# 	f.write('Port '+port+'\n')
-# f.close
+verbose("========== Configuring SSHD... ==========\n")
+ssh('echo -e "PermitRootLogin no\nMaxAuthTries 3\nMaxSessions 3\nPasswordAuthentication no\nPort '+trop+'"')
 
-# ## This is clever but i should just disable cloud-init
+## This is clever but i should just disable cloud-init
 # if os.path.exists("/etc/ssh/sshd_config.d/50-cloud-init.conf"):
 # 	os.remove('/etc/ssh/sshd_config.d/50-cloud-init.conf')
 # ## Double check more of these crazy files dont exist
-# if os.path.exists("/etc/sysconfig/sshd-permitrootlogin"):
-# 	os.remove("/etc/sysconfig/sshd-permitrootlogin")
-# print("\t========== Complete ==========\n\n")
+# os.path.exists("/etc/sysconfig/sshd-permitrootlogin"):
+# os.remove("/etc/sysconfig/sshd-permitrootlogin")
+verbose("\t========== Complete ==========\n\n")
 
 
 
-
-ssh() ## preform system changes
+## preform system changes
 # def autoswap():
 # 	print("Checking if swap exists...")
 # 	swap = run(['free'], capture_output=True)
@@ -199,177 +188,72 @@ ssh() ## preform system changes
 # 		print("\t========== Complete ==========\n\n")
 
 
-# from pwd import getpwall
-# from subprocess import run
-# from os import system
-# ### Add user if user doesn't exist ###
-
-# print(f"========== Checking if {usr} exists as a user ==========\n")
-# usernames = [x[0] for x in getpwall()]
-# if usr in usernames:
-# 	print(f"{usr} is already a user, skipping this step")
-# else:	
-# 	print(f"========== Adding {usr} user... ==========\n")
-# 	run(['useradd', '-m', usr])
-# 	usr = 'firo:'+passwd
-# 	cmd = 'printf "'+usr+'" | chpasswd'
-# 	system(cmd)
-# 	print("\t========== Complete ==========\n\n")
-
-
-ssh() ## download firod and configure
-# ### firod
-# from subprocess import run, check_output
-# from shutil import rmtree
-
-# ### Check current version of firo
-# arch = str(check_output('arch')).replace("b'","").replace("\\n'","").strip()
-# try:
-# 	firo_core_version = run(['curl','https://api.github.com/repos/firoorg/firo/releases/latest','|','jq','-r','.tagname'])
-# 	print(firo_core_version)
-# except OSError as e:
-# 	print(e)
-# 	exit()
 	
-# numb = 0
-# if arch == 'x86_64':
-# 	numb = 1
-# else:
-# 	print("This script is designed for Linux based systems on ARM or x86_64 architecture\nExiting...")
-# 	exit()
-# tarball = "".join(firo_core_version.json()["assets"][numb]["browser_download_url"].split("/")[-1])
+verbose(f"========== Adding {usr} user... ==========\n")
+ssh('useradd -u '+usr+' -g '+usr+' -d /home/'+usr+' -s /bin/bash -p $(echo '+passwd+'|openssl passwd -1 -stdin)'+usr)
+verbose("\t========== Complete ==========\n\n")
 
-# ### download firo
+### Bootstrap blockchain
+ssh() #Bootstrap on his bootstraps
 
-# def download(firo_core_version):
-# 	charch = 0
+### download firo
+reply = requests.get("https://api.github.com/repos/firoorg/firo/releases/latest")
+verbose("========== Downloading Firo Binaries tarball and Checksums... ==========\n")
+ssh('wget -q -O /home/'+usr+'/firo_core'+reply['assets'][2]['browser_download_url'])
+ssh('wget - q '+reply['assets'][7]['browser_download_url']+' --output-document /home'+usr+'/SHASUMS')
+verbose("\t========== Complete ==========\n\n")
 
-# 	if arch == 'x86_64':
-# 		charch = 1
-# 	print("========== Downloading Firo Binaries tarball and Checksums... ==========\n")
-# 	run(['wget', '-q', firo_core_version.json()['assets'][charch]['browser_download_url']])
-# 	run(['wget', '-q', firo_core_version.json()['assets'][6]['browser_download_url']])
-# 	print("\t========== Complete ==========\n\n")
+### Validate intrgrity of tarball with CHECKSUMS ###
+print("========== Checking download integrity ==========\n")
+sum=ssh('cat /home'+usr+'/SHASUM').split(" ")
+for lines in sum:
+	if "linux64" in lines:
+		l = lines.split("\\")[1]
+l2 = ssh('sha256sum /home/'+usr+"/firo_core")
+if l == l2:
+	verbose("========== \tIntegrity Verified... ==========\n")
+else:
+	ssh('rm -rf /home/'+usr+'/firo_core')
+	ssh('rm /home/'+usr+'/SHASUMS')
 
-# ### Validate intrgrity of tarball with CHECKSUMS ###
+### Extract tarball and move binaries to /usr/local/bin ###
 
-# ### Will all be on linux, just check if its arm or amd
-# def checksum(arch, current_dir, tarball):
-# 	vers = 'aarch64'
+verbose("========== Extracting Firo Binaries ==========\n")
+ssh('tar -xf /home/'+usr+'/firo_core/firo-** --directory=/home/'+usr+'firo_core/firo_bin')
+verbose("========== Moving firo binaries ==========\n")
+ssh('sudo mv /home/'+usr+'/firo_core/firo-bin/firod /home/'+usr+'/firo_core/firo-bin/firotx /home/'+usr+'/firo_core/firo-bin/firo-cli /home/'+usr+'/firo_core/firo-bin/qt/firo-qt /usr/local/bin/')
 
-# 	if arch == 'x86_64':
-# 		vers = 'linux64'
+### Create Firod config file ###
+verbose("========== Writing firo.conf file ==========\n")
+ssh('touch /home/'+usr+'/.firo/firo.conf')
+ssh('echo "#----\nrpcuser='+rpc_usrname+'\nrpcpassword='+rpc_passwd+'\nrpcallowip=127.0.0.1\n#----\nlisten=1\nserver=1\ndaemon=1\ndisablewallet=1\nlogtimestamps=1\n#----\nznode=1\nexternalip='+ext+':8168\nznodeblsprivkey='+znodeprivkey+'" > /home/'+usr+'/.firo/firo.conf')
+verbose("\t========== Complete ==========\n\n")
 
-# 	print("========== Checking download integrity ==========\n")
+### Change ownership of Firod and files to server user ###
+verbose("========== Changing Ownership of Firo required files ==========\n")
+ssh('sudo chown'+usr+': /usr/local/bin/firod')
+ssh('sudo chown'+usr+': /usr/local/bin/firo-qt')
+ssh('sudo chown'+usr+': /usr/local/bin/firo-tx')
+ssh('sudo chown'+usr+': /usr/local/bin/firo-cli')
+ssh('sudo chown -R'+usr+':/home/'+usr)
+print("\t========== Complete ==========\n\n")
 
-# 	for lines in open('SHA256SUMS', 'r'):
-# 		if vers in lines:
-# 			line = lines
-   
-# 	check1 = str(check_output(['sha256sum', tarball])).replace("b'"," ").replace("\\n'","").strip()
-# 	check2 = str(line).strip()
-# 	if check1 == check2:
-# 		print("========== \tIntegrity Verified... ==========\n")
-# 	else:
-# 		rmtree(current_dir+"/"+tarball)
-# 		rmtree(current_dir+'/SHA256SUMS')
+#### Create firod service
+ssh('sudo touch /etc/systemd/system/firod.service')
+ssh('[Unit]\nDescription=Firo daemon\nAfter=network.target\n\n[Service]\nType=forking\nRestart=always\nRestartSec=30\n\nUser='+usr+'\nGroup='+usr+'\nPIDFile=/home/'+usr+'/.firo/firod.pid\n\nExecStart=/usr/local/bin/firod\nExecStop=/usr/local/bin/firo-cli stop\n\n[Install]\nWantedBy=multi-user.target')
 
-# ### Extract tarball and move binaries to /usr/local/bin ###
-# import tarfile
-# import glob
-# from shutil import copy
+### Enable SSHD and FIROD ###
+ssh('systemctl daemon-reload')
+ssh('systemctl start firod.service')
+ssh('systemctl enable firod.service')
+ssh('systemctl restart sshd.service')
 
-# def extract_mv(tarball, current_dir,op_file,uname):
-# 	print("========== Extracting Firo Binaries ==========\n")
-# 	tar = tarfile.open(tarball.strip(), "r:gz")
-# 	tar.extractall()
-# 	tar.close
-# 	print("\t========== Complete ==========\n\n")
-# 	print('========== Moving binaries to /usr/local/bin ==========')
-# 	for p in glob.glob(current_dir+'/firo-*/bin/firo*'):
-# 		copy(p, "/usr/local/bin/")
-# 		print("Moved "+p+" to /usr/loca/bin/")
-# 	print("\t========== Complete ==========\n\n")
-# 	copy(op_file, '/home/'+uname+'/')
-
-
-# import os
-# ### Create Firod config file ###
-
-# def create_config(uname,rpc_username, rpc_passwd, externalip, znodeprivkey):
-# 	print("========== Writing firo.conf file ==========\n")
-# 	try:
-# 		os.mkdir('/home/'+uname+'/.firo')
-# 	except OSError as error:
-# 		print(error)
-# 		pass
-# 	f = open('/home/'+uname+'/.firo/firo.conf', 'w')
-# 	f.write(f'#----\nrpcuser={rpc_username}\nrpcpassword={rpc_passwd}\nrpcallowip=127.0.0.1\n#----\nlisten=1\nserver=1\ndaemon=1\nlogtimestamps=1\ntxindex=1\n#----\nznode=1\nexternalip={externalip}:8168\nznodeblsprivkey={znodeprivkey}')
-# 	f.close
-# 	print("\t========== Complete ==========\n\n")
-
-# ### Change ownership of Firod and files to server user ###
-# from subprocess import run
-# from client.variables import usr
-# print("========== Changing Ownership of Firo required files ==========\n")
-# run(['chown', usr+':'+usr, '/usr/local/bin/firod'])
-# run(['chown', usr+':'+usr, '/usr/local/bin/firo-qt'])
-# run(['chown', usr+':'+usr, '/usr/local/bin/firo-tx'])
-# run(['chown', usr+':'+usr, '/usr/local/bin/firo-cli'])
-# run(['chown', '-R', usr+':'+usr, '/home/'+usr])
-# print("\t========== Complete ==========\n\n")
-
-
-ssh() ## bootstrap blockchain
-
-
-ssh() ## add services
-# #### Create Firod system daemon ###
-
-# f = open("/etc/systemd/system/firod.service", "w")
-# f.write(f'''
-# [Unit]
-# Description=Firo daemon
-# After=network.target
-
-# [Service]
-# Type=forking
-# Restart=always
-# RestartSec=30
-
-# User={usr}
-# Group={usr}
-# PIDFile=/home/{usr}/.firo/firod.pid
-
-# ExecStart=/usr/local/bin/firod
-# ExecStop=/usr/local/bin/firo-cli stop
-
-# [Install]
-# WantedBy=multi-user.target
-# ''')
-# f.close
-
-# ### Enable SSHD and FIROD ###
-# from subprocess import run
-# #/
-# run(['systemctl', 'daemon-reload'])
-# run(['systemctl', 'start', 'firod.service'])
-# run(['systemctl', 'enable', 'firod.service'])
-# try:
-# 	run(['systemctl', 'restart', 'sshd.service'])
-# except OSError as e:
-# 	print(e)
-# 	try:
-# 		run(['systemctl', 'restart', 'ssh.service'])
-# 	#this wont work long term, if sshd fails you lose access to the server making the script useless
-# 	#will have to work as a stand in for now while testing, cant fix the errors i cant create...
-# 	except OSError as e:
-# 		print(e)
-# 		print('Unable to restart sshd service, please do so manually.')
-
-# ### Create logrotate for Firod ###
-# from client.variables import usr
-# f = open("/etc/logrotate.d/firo", "w")
-# f.write("/home/"+usr+"/.firo/debug.log {\ndaily\nmissingok\nrotate 28\ncompress\ncopytruncate\n}")
-# f.close
+### Create logrotate for Firod ###
+ssh('sudo touch /etc/logrotate.d/firod')
+ssh('sudo echo "/home/'+usr+'/.firo/debug.log {\ndaily\nmissingok\nrotate 28\ncompress\ncopytruncate\n}"')
+### Download and create autoupdate
+ssh('sudo apt upgrade -y && sudo apt full sudo apt install unattended-upgrades update-notifier-common jq')
+# ### Create firo-autoupdate
+ssh(r'''(sudo crontab -l ; echo "@weekly gv=\`curl \"https://api.github.com/repos/firoorg/firo/releases/latest\" |jq -r '.[\"tag_name\"]';fdv=`firod -version | sed -n '1p' | awk '{print $5}' | cut --delimiter \"-\" --fields 1`;if [ \"$gv\" == \"$fdv\" ] ;then break;else fdd=\`curl --silent \"https://api.github.com/repos/firoorg/firo/releases/latest" | jq -r '.['assets'][2]['browser_download_url']`; sumd= \`curl --silent \"https://api.github.com/repos/firoorg/firo/releases/latest" | jq -r '.['assets'][7]['browser_download_url'];wget -q $fdd -P /root/firo_core;sum=wget -q "$sumd" --output-docuent /root/SHASUM;sum=`cat SHA256SUMS |sed -n '6p'|cut --delimiter " " --fields 1`;fsum=`sha256sum firo-core`;if "$fsum" == sha256sum firo_core;then tar -xf firo_core --directory=/root/firo_core/firo;mv /root/firo-core/firo/firod /root/firo-core/firo/firo-cli /usr/local/bin/;rm -rf /root/SHASUM /root/firo_core;else break;fi; fi")| crontab - 2>/dev/null''')
+# ### Impliment auto updater
 client.close()

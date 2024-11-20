@@ -2,6 +2,7 @@ from sendnodes import args
 import local_fun as local_fun
 import distro
 from pathlib import Path
+from subprocess import run, PIPE
 
 ### CLIENT DISTRO SPICIFIC INFORMATION
 
@@ -92,16 +93,17 @@ else:
 	e = args.passwd
 passwd = e
 
-### SSH KEY LOCATION
-keyname = args.ssh_key_name
-
 ### SUPER USER NAME
 suusr = args.superuser
 
 ### (OPTIONAL) SSH KEY PASSWORD
 sshkeypass = args.sshkeypass
-
+### SSH KEY
+try:
+    sshkey = run(['ssh-keygen','-t','ed25519','-f','/home/'+usr+'/.ssh/ed25519_firo_0','-N',sshkeypass],stdout=PIPE,universal_newlines=True)
+    verbose(sshkey.stdout)
+except:
+    run(['firo-cli','stop'])
+    exit()
 ### CLIENT WILL FINISH SET UP ONCE SERVER IS SYNCED
 nofinish = args.nofinish
-
-clean_up = ['rm','-rf','./__pycache__']

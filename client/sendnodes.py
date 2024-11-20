@@ -40,7 +40,7 @@ parser.add_argument('--no-daemon-user', action='store_true', help='Use super use
 parser.add_argument('-v','--verbose', action='store_true', help='Make script more verbose')
 args = parser.parse_args()
 
-import wallet
+import client.wallet as wallet
 import client.ssh as ssh
 import finish
 
