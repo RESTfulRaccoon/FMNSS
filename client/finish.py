@@ -1,6 +1,8 @@
 from variables import nofinish,clean_up, verbose
 from subprocess import run
 
+# protx register collateralHash collateralIndex ipAndPort ownerAddress operatorPubKey votingAddress operatorReward payoutAddress feeSourceAddress
+
 ### REMOVE CACHE
 run(clean_up)
 verbose("Clearing cache...")
