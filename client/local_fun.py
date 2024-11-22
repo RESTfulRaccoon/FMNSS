@@ -1,17 +1,21 @@
 ### Password/Username/Port Generation
 import random
 import os
-
+import shutil
+from ipaddress import ip_address
 letters = [
 	'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
     'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D',
     'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
     'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-symbols = ['+','-','_','=']
-more = ['!','#','@','$','&','*','(',')','<','>','.','%','?','^']
+symbols = ['+','-','_','=','!']
+more = ['#','@','$','&','*','(',')','<','>','.','%','?','^']
 
-### Distro Information
+### Backtrack after failed process
+def clean_up():
+	shutil.rmtree('__pycache__')
+	exit()
 
 ### Daemon User (`firo`) Password Gen
 def usr_passwd_gen(num):
@@ -32,6 +36,7 @@ def username_gen(num):
 		u.append(randomchar)
 	rpcname = "".join(u)
 	return rpcname
+
 ### RPC Password Generator
 def rpc_passwd_gen(num):
 	passwd = []
@@ -57,22 +62,47 @@ def port_gen():
 ## sanatize
 
 def rpc_pass(v):
-    print("v_rpc_pass: "+v)
-    #check that the password doesnt use "#", might want to make it more strict
+	for i in v:
+		if i == "#":
+			print(f"Error: Rpc password can not contain the '#' character it will comment out <#ANTHING FROM THAT POINT ON>: {v}\nPlease consider leaving this field blank and letting the script generate a password for you")
+			clean_up()
 
+#check that its not an internal ip && ip is valid && ip is not reserved
 def ext(v):
-     print("v_ext: "+v)
-    #check that its not an internal ip && ip is valid
+	try:
+		ip_address(v)
+	except ValueError:
+		print(f"{v} is not a valid IPAddress")
+		clean_up()
+	if ip_address(v).is_reserved:
+		print(f"{v} is a reserved IP Address.\n please ensure you have entered in the correct information and try again.")
+		clean_up()
+	elif ip_address(v).is_private:
+		print(f"{v} is a private IP Address.\nThis script is not interned for LAN node set up.\nPlease enter the External IP address of your server.")
+		clean_up()
+
 
 def port(v):
-	if v < 1024 and v != 22:
-		print("v_port: "+v)
-
-    #check against commonly used ports, inform user port should be above 10000 exit()
-
+	for i in v:
+		if i not in numbers:
+			print(f"Error: Port can contain numbers only: {v}\nPlease consider leaving this field blank and letting the script generate a port for you")
+			clean_up()
+	if v <= 10000 and v != 22:
+		print(f"Please consider using a port above 10000.")
+		while True:
+			x = input("Are you sure {v} is not in use? [y/n]")
+			if x.lower() == "y" or "yes":
+				False
+			elif x.lower() == "n" or "no":
+				clean_up()
+			else:
+				print("Please input yes or no")
+				continue
 def usr(v):
-	print("v_usr: "+v)
-    #char only exit()  if fails
+	for i in v:
+		if i not in letters:
+			print(f"Error: Usernames should consist of letters only: {v}\nPlease consider leaving this field blank and letting the script generate a username for you")
+			clean_up()
 
 ## Check if key exists 
 def key_check(a):
