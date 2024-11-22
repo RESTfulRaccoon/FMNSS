@@ -13,8 +13,13 @@ except CalledProcessError as e:
     verbose(e)
 
 ### UNLOCK WALLET
-
-### GATHER INFO
+### Check for wallet with 1000 balance
+### Ensure not used by other node
+### Lock unspent
+### Owner address
+### Payout address
+### feesourceaddress (not an address == 1000 firo)
+### operator keys
 znodeprivkey = "todo!"
 ## LOCK WALLET
 
