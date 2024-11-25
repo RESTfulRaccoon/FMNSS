@@ -6,6 +6,7 @@ from subprocess import run
 ### REMOVE CACHE
 run(clean_up)
 verbose("Clearing cache...")
+### can probably avoid this with bootstrap
 if nofinish == True:
     print(__name__)
 else:

@@ -13,7 +13,7 @@ except CalledProcessError as e:
     verbose(e)
 
 ### UNLOCK WALLET
-### Check for wallet with 1000 balance
+### Check for wallet with 1000 balance && 1 tx
 ### Ensure not used by other node
 ### Lock unspent
 ### Owner address

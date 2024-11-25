@@ -1,100 +1,14 @@
-from variables import suusr, supass,ext,port as trop,sshkey, usr, passwd,rpc_passwd,rpc_usrname
+from variables import ext, usr, passwd,rpc_passwd,rpc_usrname
 # from local import gen_key, key_type,fullkey
-from local_fun import verbose, clean_up
+from local_fun import verbose
 from wallet import znodeprivkey
-import paramiko, requests
-from time import sleep
+from ssh import ssh
+import requests
 
-#enter client
-client = paramiko.SSHClient()
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect(hostname=ext, username=suusr, pkey=sshkey,port=trop)
-channel = client.invoke_shell()
-channel.recv(99999)
-channel.send('\n')
-sleep(1) 
-channel.recv(99999)
-
-def ssh(c): ## look over this again, it looks strange..
-    #check if root already
-    channel.send("whoami")
-    sleep(0.1) 
-    w = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
-    if "root" in w: 
-         su = True
-    s = c.split(" ")
-    if su:
-        # if sudo in command remove sudo from command
-        if s[0] == sudo:
-            s.pop(0)
-            channel.send(s+' \n')
-            sleep(0.1)
-        else:
-             channel.send(c+" \n")
-             sleep(0.1)
-    if s[0] == 'sudo':
-        sudo = True
-    else:
-        sudo = False
-    if sudo:
-        channel.send('sudo whoami \n')
-        sleep(0.1)
-        channel.send(supass)
-        sleep(0.1)
-        channel.send('\n')
-        sleep(0.1)
-        r = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
-        if 'root' not in r[1]:
-            channel.send('sudo whoami \n')
-            sleep(0.1)
-            channel.send(supass)
-            sleep(0.1)
-            channel.send('\n')
-            sleep(0.1)
-            r = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
-            if 'sudo: command not found' or 'root' not in r[1]:
-                s.pop(0)
-                channel.send('su - \n')
-                sleep(0.1)
-                channel.send(supass)
-                sleep(0.1)
-                channel.send('\n')
-                sleep(0.1)
-                channel.recv(99999)
-                channel.send('whoami \n')
-                sleep(0.1)
-                r = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
-                if 'root' not in r[1]:
-                    channel.send('su - \n')
-                    sleep(0.1)
-                    channel.send(supass)
-                    sleep(0.1)
-                    channel.send('\n')
-                    sleep(0.1)
-                    channel.recv(99999)
-                    channel.send('whoami \n')
-                    sleep(0.1)
-                    r = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
-                    if 'root' not in r[1]:
-                        print("ERROR: COULD NOT GAIN ELIVATED PRIVLAGES")
-                        clean_up()
-                    else:
-                        m=r
-                else:
-                    m=r
-            else:
-                m=r
-        else:
-            channel.send(c+' \n')
-            sleep(0.1)
-            m = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
-    else:
-        channel.send(c+' \n')
-        sleep(0.1)
-        m = channel.recv(99999).decode('utf-8').replace('\r','').split('\n')
-    return m
     
 ssh() ## check if updating if system updating print and wait x3 then exit
+ssh() ## check system depends
+ssh() ## check python depends
 
 #Gather server disro info
 x=ssh('cat /etc/os-release')
@@ -137,12 +51,19 @@ else:
 verbose("========== Configuring SSHD... ==========\n")
 ssh('echo -e "PermitRootLogin no\nMaxAuthTries 3\nMaxSessions 3\nPasswordAuthentication no\nPort '+trop+'"')
 
-## This is clever but i should just disable cloud-init
-# if os.path.exists("/etc/ssh/sshd_config.d/50-cloud-init.conf"):
-# 	os.remove('/etc/ssh/sshd_config.d/50-cloud-init.conf')
-# ## Double check more of these crazy files dont exist
-# os.path.exists("/etc/sysconfig/sshd-permitrootlogin"):
-# os.remove("/etc/sysconfig/sshd-permitrootlogin")
+try:
+	ssh('sudo apt purge cloud-init -y')
+	ssh('sudo rm -rf /etc/cloud /var/lib/cloud/')
+except OSError as e:
+    verbose('Could not purge cloud-init:')
+    verbose(e)
+    verbose('Creating a disable file.')
+    ssh('sudo touch /etc/cloud/cloud-init.disabled')
+
+try:
+    ssh("sudo rm -rf /etc/sysconfig/sshd-permitrootlogin")
+except OSError as e:
+	print(e)
 verbose("\t========== Complete ==========\n\n")
 
 ## preform system changes
@@ -259,6 +180,6 @@ ssh('sudo echo "/home/'+usr+'/.firo/debug.log {\ndaily\nmissingok\nrotate 28\nco
 ### Download and create autoupdate
 ssh('sudo apt upgrade -y && sudo apt full sudo apt install unattended-upgrades update-notifier-common jq')
 # ### Create firo-autoupdate
-ssh(r'''(sudo crontab -l ; echo "@weekly gv=\`curl \"https://api.github.com/repos/firoorg/firo/releases/latest\" |jq -r '.[\"tag_name\"]';fdv=`firod -version | sed -n '1p' | awk '{print $5}' | cut --delimiter \"-\" --fields 1`;if [ \"$gv\" == \"$fdv\" ] ;then break;else fdd=\`curl --silent \"https://api.github.com/repos/firoorg/firo/releases/latest" | jq -r '.['assets'][2]['browser_download_url']`; sumd= \`curl --silent \"https://api.github.com/repos/firoorg/firo/releases/latest" | jq -r '.['assets'][7]['browser_download_url'];wget -q $fdd -P /root/firo_core;sum=wget -q "$sumd" --output-docuent /root/SHASUM;sum=`cat SHA256SUMS |sed -n '6p'|cut --delimiter " " --fields 1`;fsum=`sha256sum firo-core`;if "$fsum" == sha256sum firo_core;then tar -xf firo_core --directory=/root/firo_core/firo;mv /root/firo-core/firo/firod /root/firo-core/firo/firo-cli /usr/local/bin/;rm -rf /root/SHASUM /root/firo_core;else break;fi; fi")| crontab - 2>/dev/null''')
+ssh(r'''(sudo crontab -l ; echo "@weekly ### cronupdater| crontab - 2>/dev/null''')
 # ### Impliment auto updater
-client.close()
+ssh("close")
