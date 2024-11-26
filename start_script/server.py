@@ -66,7 +66,7 @@ except OSError as e:
 	print(e)
 verbose("\t========== Complete ==========\n\n")
 
-## preform system changes
+## Check and create swap
 # def autoswap():
 # 	print("Checking if swap exists...")
 # 	swap = run(['free'], capture_output=True)
@@ -181,7 +181,7 @@ ssh('sudo echo "/home/'+usr+'/.firo/debug.log {\ndaily\nmissingok\nrotate 28\nco
 ssh('sudo apt upgrade -y && sudo apt install unattended-upgrades update-notifier-common jq')
 ### Create firo-autoupdate
 # ssh(copy updater to /usr/local/sbin)
-# ssh('chmod 744 /usr/local/sbin/firod_automatic_updater.sh)
-# ssh('sudo chown root:root firod_automatic_updater.sh')
-# ssh(f'echo "{minute} {hour} * * {day}" firo_automatic_updater.sh')
+ssh('chmod 744 /usr/local/sbin/firod_automatic_updater.sh')
+ssh('sudo chown root:root firod_automatic_updater.sh')
+ssh(f'echo "{minute} {hour} * * {day} /bin/bash firo_automatic_updater.sh')
 ssh("close")
