@@ -9,29 +9,10 @@ from subprocess import run, PIPE
 dist = distro.id()
 home = str(Path.home())
 
-if dist == 'ubuntu' or 'debian':
-	#where it should be
-	dflt='/usr/local/bin/'
-	#where it could be
-	#check_path=[home+'Downloads/firo', home+'Desktop/firo']
-	keypath=home+'/.ssh/'
-	#anyother disto specific commands or paths
-elif dist == 'macos':
-	#where it should be
-	dflt='where ever it should run from'
-	#where it could be
-	#check_path="where it could be if its not where it should be"
-	keypath=home+'/.ssh/'
-	#anyother disto specific commands or paths
-
+if dist == 'ubuntu' or 'debian' or 'macos':
+	keypath=home+'/home/$USER/.ssh/'
 elif dist == "windows":
-	#where it should be
-	dflt="del system32"
-	#where it could be
-	#check_path="where it could be if its not where it should be"
-	keypath=home+'/.ssh/'
-
-
+	keypath=home+'\\.ssh\\'
 
 ### REQUIRED
 ext = args.server_ip
@@ -105,5 +86,3 @@ try:
 except:
     run(['firo-cli','stop'])
     exit()
-### CLIENT WILL FINISH SET UP ONCE SERVER IS SYNCED
-nofinish = args.nofinish
