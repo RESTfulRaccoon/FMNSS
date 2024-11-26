@@ -12,10 +12,11 @@ channel.send('\n')
 sleep(1) 
 channel.recv(99999)
 
-def ssh(c): ## look over this again, it looks strange..
+def ssh(c):
     #check if root already
     if c == "close":
         client.close
+        return
     su = False
     sudo = False
     channel.send("whoami")
