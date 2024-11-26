@@ -11,7 +11,7 @@ channel.recv(99999)
 channel.send('\n')
 sleep(1) 
 channel.recv(99999)
-supass = input("Enter Password: ")
+
 def ssh(c): ## look over this again, it looks strange..
     #check if root already
     if c == "close":
