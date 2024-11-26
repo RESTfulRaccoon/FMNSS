@@ -1,6 +1,6 @@
 from variables import ext, usr, passwd,rpc_passwd,rpc_usrname
 # from local import gen_key, key_type,fullkey
-from local_fun import verbose
+from local_fun import verbose, minute, hour, day
 from wallet import znodeprivkey
 from ssh import ssh
 import requests
@@ -178,8 +178,10 @@ ssh('systemctl restart sshd.service')
 ssh('sudo touch /etc/logrotate.d/firod')
 ssh('sudo echo "/home/'+usr+'/.firo/debug.log {\ndaily\nmissingok\nrotate 28\ncompress\ncopytruncate\n}"')
 ### Download and create autoupdate
-ssh('sudo apt upgrade -y && sudo apt full sudo apt install unattended-upgrades update-notifier-common jq')
-# ### Create firo-autoupdate
-ssh(r'''(sudo crontab -l ; echo "@weekly ### cronupdater| crontab - 2>/dev/null''')
-# ### Impliment auto updater
+ssh('sudo apt upgrade -y && sudo apt install unattended-upgrades update-notifier-common jq')
+### Create firo-autoupdate
+# ssh(copy updater to /usr/local/sbin)
+# ssh('chmod 744 /usr/local/sbin/firod_automatic_updater.sh)
+# ssh('sudo chown root:root firod_automatic_updater.sh')
+# ssh(f'echo "{minute} {hour} * * {day}" firo_automatic_updater.sh')
 ssh("close")
