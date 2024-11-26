@@ -129,3 +129,8 @@ def key_check(a):
 			else:
 				cond = False
 				return file
+
+### Random cronjob start time and day for updater			
+day = random.randrange(7)
+hour = random.randrange(11)
+minute = random.randrange(60)
